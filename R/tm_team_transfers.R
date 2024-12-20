@@ -83,6 +83,8 @@ tm_team_transfers <- function(team_url, transfer_window = "all") {
                                                            error = function(e) player_df[j, "player_nationality"] <- NA_character_)
             player_df[j, "club_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table") %>% rvest::html_nodes("a") %>% .[3] %>% rvest::html_text() %>% .replace_empty_na(),
                                                error = function(e) player_df[j, "club_2"] <- NA_character_)
+            player_df[j, "club_2_url"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table") %>% rvest::html_nodes("a") %>% .[3] %>% rvest::html_attr("href") %>% .replace_empty_na(), 
+                                                    error = function(e) player_df[j, "club_2_url"] <- NA_character_)
             player_df[j, "league_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".flaggenrahmen+ a") %>% rvest::html_text() %>% .replace_empty_na(),
                                                  error = function(e) player_df[j, "league_2"] <- NA_character_)
             player_df[j, "country_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table .flaggenrahmen") %>% rvest::html_attr("alt") %>% .replace_empty_na(),
