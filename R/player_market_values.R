@@ -609,11 +609,11 @@ tm_player_market_values_club <- function(club_url, start_year = NA) {
                                 }, character(1))
 
     player_height_mtrs <- suppressWarnings(
-      col_or_na(grep("Height", tab_head_names)) |>
-      gsub(",", ".", .) |>
-      gsub("m",  "", .)  |>
-      stringr::str_squish() |>
-      as.numeric()
+      col_or_na(grep("Height", tab_head_names)) %>%        # numeric/NA vector
+        gsub(",", ".", .) %>%                              # swap comma for point
+        gsub("m",  "", .) %>%                              # drop the “m”
+        stringr::str_squish() %>%                          # trim spaces
+        as.numeric()
     )
 
     player_foot        <- col_or_na(grep("Foot", tab_head_names))
@@ -660,9 +660,12 @@ tm_player_market_values_club <- function(club_url, start_year = NA) {
     tidyr::separate(player_birthday, into = c("Month", "Day", "Year"),
                     sep = " ", remove = FALSE) %>%
     dplyr::mutate(
-      player_age  = gsub(".*\\(", "", player_birthday) |> gsub("\\)", "", _) |> as.numeric(),
-      Day         = gsub(",", "", Day) |> as.numeric(),
-      Year        = gsub("\\(.*", "", Year) |> as.numeric(),
+      player_age = player_birthday %>% 
+             gsub(".*\\(",  "", .)  %>% 
+             gsub("\\)",   "", .)   %>% 
+             as.numeric()
+      Day  = Day  %>% gsub(",",   "", .) %>% as.numeric()
+      Year = Year %>% gsub("\\(.*", "", .) %>% as.numeric()
       Month       = match(Month, month.abb),
       player_dob  = suppressWarnings(lubridate::ymd(paste(Year, Month, Day, sep = "-")))
     ) %>%
