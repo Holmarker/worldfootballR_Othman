@@ -663,9 +663,9 @@ tm_player_market_values_club <- function(club_url, start_year = NA) {
       player_age = player_birthday %>% 
              gsub(".*\\(",  "", .)  %>% 
              gsub("\\)",   "", .)   %>% 
-             as.numeric()
-      Day  = Day  %>% gsub(",",   "", .) %>% as.numeric()
-      Year = Year %>% gsub("\\(.*", "", .) %>% as.numeric()
+             as.numeric(),
+      Day  = Day  %>% gsub(",",   "", .) %>% as.numeric(),
+      Year = Year %>% gsub("\\(.*", "", .) %>% as.numeric(),
       Month       = match(Month, month.abb),
       player_dob  = suppressWarnings(lubridate::ymd(paste(Year, Month, Day, sep = "-")))
     ) %>%
