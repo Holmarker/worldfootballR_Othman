@@ -503,7 +503,7 @@ get_player_market_values <- function(country_name, start_year, league_url = NA) 
 #' @importFrom lubridate ymd mdy
 #' @importFrom glue glue
 #'
-tm_player_market_values_by_club_season <- function(club_url, start_year) {
+tm_player_market_values_club <- function(club_url, start_year) {
   main_url <- "https://www.transfermarkt.com"
 
   # 1. Scrape the main club page to find available seasons
