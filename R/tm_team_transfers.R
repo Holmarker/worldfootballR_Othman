@@ -30,7 +30,6 @@ tm_team_transfers <- function(team_url, transfer_window = "all") {
     country <- team_page %>% rvest::html_nodes(".data-header__content img") %>% rvest::html_attr("title") %>% .replace_empty_na()
     season <- xfers_url %>% gsub(".*saison_id/", "", .) %>% .replace_empty_na()
 
-
     tab_box <- team_page %>% rvest::html_nodes(".box")
     tab_names <- tab_box %>% rvest::html_nodes("h2") %>% rvest::html_text() %>% stringr::str_squish()
     # need to get the URL to be able to pass transfer window
@@ -53,73 +52,143 @@ tm_team_transfers <- function(team_url, transfer_window = "all") {
       team_page_window <- xml2::read_html(xfers_window_url)
       tab_box_window <- team_page_window %>% rvest::html_nodes(".box")
       # need to isolate the arrivals and departures tables
-      tab_names <- tab_box_window %>% 
-        rvest::html_node("h2") %>% 
-        purrr::map_chr(
-          \(.x) {
-            .x %>%
-              rvest::html_text() %>% 
-              stringr::str_squish()
-          }
-        )
-        
+      tab_names <- tab_box_window %>%
+        rvest::html_node("h2") %>%
+        purrr::map_chr(\(.x) {
+          .x %>% rvest::html_text() %>% stringr::str_squish()
+        })
+
       tab_box_window_selected <- tab_box_window[which(tab_names %in% c("Arrivals", "Departures"))]
       both_tabs <- tab_box_window_selected %>% rvest::html_nodes(".responsive-table")
-
 
       # create output for team of both arrivals and departures
       team_df_each_window <- data.frame()
 
       for(i in 1:length(tab_box_window_selected)) {
-        each_tab <- tryCatch(both_tabs[i] %>% rvest::html_nodes("tbody") %>% .[[1]] %>% rvest::html_children(), error = function(e) NA_character_)
+        each_tab <- tryCatch(
+          both_tabs[i] %>% rvest::html_nodes("tbody") %>% .[[1]] %>% rvest::html_children(),
+          error = function(e) NA_character_
+        )
 
         if(any(is.na(each_tab))) {
           player_df <- data.frame()
         } else {
           player_df <- data.frame()
           for(j in 1:length(each_tab)) {
-            player_df[j, "transfer_type"] <- tryCatch(tab_box_window_selected[i] %>% rvest::html_nodes("h2") %>% rvest::html_text() %>% stringr::str_squish(),
-                                                      error = function(e) player_df[j, "transfer_type"] <- NA_character_)
-            player_df[j, "player_name"] <- tryCatch(each_tab[j] %>% rvest::html_node(".hauptlink") %>% rvest::html_nodes("a") %>% rvest::html_text(),
-                                                    error = function(e) player_df[j, "player_name"] <- NA_character_)
-            player_df[j, "player_url"] <- tryCatch(each_tab[j] %>% rvest::html_node(".hauptlink") %>% rvest::html_nodes("a") %>% rvest::html_attr("href") %>% paste0(main_url, .),
-                                                   error = function(e) player_df[j, "player_url"] <- NA_character_)
-            player_df[j, "player_position"] <- tryCatch(each_tab[j] %>% rvest::html_nodes("td:nth-child(2) tr+ tr td") %>% rvest::html_text() %>% .replace_empty_na(),
-                                                        error = function(e) player_df[j, "player_position"] <- NA_character_)
-            player_df[j, "player_age"] <- tryCatch(each_tab[j] %>% rvest::html_nodes("td.zentriert:nth-child(3)") %>% rvest::html_text() %>% .replace_empty_na(),
-                                                   error = function(e) player_df[j, "player_age"] <- NA_character_)
-            player_df[j, "player_nationality"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".zentriert .flaggenrahmen") %>% .[1] %>% rvest::html_attr("title") %>% .replace_empty_na(),
-                                                           error = function(e) player_df[j, "player_nationality"] <- NA_character_)
-            player_df[j, "club_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table") %>% rvest::html_nodes("a") %>% .[3] %>% rvest::html_text() %>% .replace_empty_na(),
-                                               error = function(e) player_df[j, "club_2"] <- NA_character_)
-            player_df[j, "club_2_url"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table") %>% rvest::html_nodes("a") %>% .[3] %>% rvest::html_attr("href") %>% .replace_empty_na(), 
-                                                    error = function(e) player_df[j, "club_2_url"] <- NA_character_)
-            player_df[j, "league_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".flaggenrahmen+ a") %>% rvest::html_text() %>% .replace_empty_na(),
-                                                 error = function(e) player_df[j, "league_2"] <- NA_character_)
-            player_df[j, "country_2"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".inline-table .flaggenrahmen") %>% rvest::html_attr("alt") %>% .replace_empty_na(),
-                                                  error = function(e) player_df[j, "country_2"] <- NA_character_)
-            player_df[j, "transfer_fee"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".rechts a") %>% rvest::html_text() %>% .replace_empty_na(),
-                                                     error = function(e) player_df[j, "transfer_fee"] <- NA_character_)
-            player_df[j, "is_loan"] <- tryCatch(grepl("loan", player_df[j, "transfer_fee"], ignore.case = T),
-                                                error = function(e) player_df[j, "is_loan"] <- NA_character_)
-            player_df[j, "transfer_fee_dup"] <- tryCatch(player_df[j, "transfer_fee"],
-                                                         error = function(e) player_df[j, "transfer_fee_dup"] <- NA_character_)
-            if(is.na(each_tab[j])) {
+
+            # CHANGED: ensure single string
+            player_df[j, "transfer_type"] <- tryCatch(
+              tab_box_window_selected[i] %>%
+                rvest::html_nodes("h2") %>% .[1] %>%
+                rvest::html_text() %>% stringr::str_squish(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: pick first <a> to avoid length > 1
+            player_df[j, "player_name"] <- tryCatch(
+              each_tab[j] %>% rvest::html_node(".hauptlink") %>%
+                rvest::html_nodes("a") %>% .[1] %>%                # <- ensure one
+                rvest::html_text() %>% stringr::str_squish() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: pick first <a> href
+            player_df[j, "player_url"] <- tryCatch(
+              each_tab[j] %>% rvest::html_node(".hauptlink") %>%
+                rvest::html_nodes("a") %>% .[1] %>%                # <- ensure one
+                rvest::html_attr("href") %>% paste0(main_url, .) %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: take first cell text if multiple
+            player_df[j, "player_position"] <- tryCatch(
+              each_tab[j] %>%
+                rvest::html_nodes("td:nth-child(2) tr+ tr td") %>% .[1] %>%
+                rvest::html_text() %>% stringr::str_squish() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: take first value if multiple
+            player_df[j, "player_age"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes("td.zentriert:nth-child(3)") %>% .[1] %>%
+                rvest::html_text() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # already first flag with .[1]
+            player_df[j, "player_nationality"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".zentriert .flaggenrahmen") %>% .[1] %>%
+                rvest::html_attr("title") %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # keep .[3], but result is scalar; tryCatch will NA if missing
+            player_df[j, "club_2"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".inline-table") %>%
+                rvest::html_nodes("a") %>% .[3] %>%
+                rvest::html_text() %>% stringr::str_squish() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # keep .[3], ensure scalar
+            player_df[j, "club_2_url"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".inline-table") %>%
+                rvest::html_nodes("a") %>% .[3] %>%
+                rvest::html_attr("href") %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: take first league link text
+            player_df[j, "league_2"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".flaggenrahmen+ a") %>% .[1] %>%
+                rvest::html_text() %>% stringr::str_squish() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: take first flag title
+            player_df[j, "country_2"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".inline-table .flaggenrahmen") %>% .[1] %>%
+                rvest::html_attr("alt") %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: take first <a> text in fee cell
+            player_df[j, "transfer_fee"] <- tryCatch(
+              each_tab[j] %>% rvest::html_nodes(".rechts a") %>% .[1] %>%
+                rvest::html_text() %>% .replace_empty_na(),
+              error = function(e) NA_character_
+            )
+
+            player_df[j, "is_loan"] <- tryCatch(
+              grepl("loan", player_df[j, "transfer_fee"], ignore.case = TRUE),
+              error = function(e) NA
+            )
+
+            player_df[j, "transfer_fee_dup"] <- tryCatch(
+              player_df[j, "transfer_fee"],
+              error = function(e) NA_character_
+            )
+
+            # CHANGED: guard and take first icon text if present
+            notes_nodes_len <- tryCatch(
+              length(each_tab[j] %>% rvest::html_nodes(".rechts.hauptlink a i")),
+              error = function(e) 0L
+            )
+            if (notes_nodes_len == 0L) {
               player_df[j, "transfer_fee_notes1"] <- NA_character_
             } else {
-              if(length(each_tab[j] %>% rvest::html_nodes(".rechts.hauptlink a i") %>% rvest::html_text()) == 0) {
-                player_df[j, "transfer_fee_notes1"] <- NA_character_
-              } else {
-                player_df[j, "transfer_fee_notes1"] <- tryCatch(each_tab[j] %>% rvest::html_nodes(".rechts.hauptlink a i") %>% rvest::html_text(),
-                                                                error = function(e) player_df[j, "transfer_fee_notes1"] <- NA_character_)
-              }
+              player_df[j, "transfer_fee_notes1"] <- tryCatch(
+                each_tab[j] %>% rvest::html_nodes(".rechts.hauptlink a i") %>% .[1] %>%
+                  rvest::html_text(),
+                error = function(e) NA_character_
+              )
             }
 
-            player_df[j, "window"] <- tryCatch(each_window,
-                                               error = function(e) player_df[j, "window"] <- NA_character_)
-
+            player_df[j, "window"] <- tryCatch(
+              each_window,
+              error = function(e) NA_character_
+            )
           }
-
         }
 
         team_df_each_window <- dplyr::bind_rows(team_df_each_window, player_df)
@@ -140,13 +209,18 @@ tm_team_transfers <- function(team_url, transfer_window = "all") {
 
     # cleaning up final output data
     team_df <- team_df %>%
-      dplyr::mutate(transfer_fee = ifelse(stringr::str_detect(.data[["transfer_fee_dup"]], "Loan fee:"), .data[["transfer_fee_notes1"]], .data[["transfer_fee"]])) %>%
-      dplyr::mutate(transfer_fee = mapply(.convert_value_to_numeric, euro_value = .data[["transfer_fee"]])) %>%
-      dplyr::mutate(transfer_fee_dup = ifelse(is.na(.data[["transfer_fee"]]), .data[["transfer_fee_dup"]], NA_character_),
-                    transfer_fee_dup = gsub("End of loan", "End of loan ", .data[["transfer_fee_dup"]])) %>%
+      dplyr::mutate(
+        transfer_fee = ifelse(stringr::str_detect(.data[["transfer_fee_dup"]], "Loan fee:"), .data[["transfer_fee_notes1"]], .data[["transfer_fee"]])
+      ) %>%
+      dplyr::mutate(
+        transfer_fee = mapply(.convert_value_to_numeric, euro_value = .data[["transfer_fee"]])
+      ) %>%
+      dplyr::mutate(
+        transfer_fee_dup = ifelse(is.na(.data[["transfer_fee"]]), .data[["transfer_fee_dup"]], NA_character_),
+        transfer_fee_dup = gsub("End of loan", "End of loan ", .data[["transfer_fee_dup"]])
+      ) %>%
       dplyr::rename(transfer_notes = .data[["transfer_fee_dup"]]) %>%
       dplyr::select(-.data[["transfer_fee_notes1"]])
-
 
     #----- Get player stats including goals and appearances: -----#
     team_data_url <- gsub("startseite", "leistungsdaten", each_team_url)
@@ -165,8 +239,13 @@ tm_team_transfers <- function(team_url, transfer_window = "all") {
     minutes_played <- team_data_table %>% rvest::html_nodes(".rechts") %>% rvest::html_text() %>%
       gsub("\\.", "", .) %>% gsub("'", "", .) %>% gsub("-", "0", .) %>% as.numeric()
 
-    team_data_df <- data.frame(player_name = as.character(player_name), in_squad = as.numeric(in_squad),
-                               appearances = as.numeric(appearances), goals = as.numeric(goals), minutes_played = as.numeric(minutes_played))
+    team_data_df <- data.frame(
+      player_name = as.character(player_name),
+      in_squad = as.numeric(in_squad),
+      appearances = as.numeric(appearances),
+      goals = as.numeric(goals),
+      minutes_played = as.numeric(minutes_played)
+    )
 
     # now join the two data sets together:
     team_df <- team_df %>%
